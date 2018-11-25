@@ -11,6 +11,8 @@ import time
 import random
 import math
 import sys
+from CountComplx import CountComplx
+
 
 class Network():    
     """    
@@ -56,7 +58,7 @@ class Network():
         
         
         
-    def addNode(self, nodeId, holderId = None):
+    def addNode(self, nodeId, holderId = None, askingPrivRate = None):
         """    
         Extended description of function.
         
@@ -83,7 +85,11 @@ class Network():
             
         else :
             
-            self.nodes[nodeId] = Node(nodeId, holderId, askingPrivRate = self.activityRate)
+            if askingPrivRate is None :
+                
+                askingPrivRate = self.activityRate
+                
+            self.nodes[nodeId] = Node(nodeId, holderId, askingPrivRate)
             
             if holderId :
                 
@@ -133,27 +139,33 @@ class Network():
         """       
         nodesIds = list( self.nodes.keys() )
         
+        randomNode = self.nodes[nodesIds[0]]
+        
         for node in self.nodes.values() :
             
             node.daemon = True
             
             node.start()
         
-        t = time.clock()
+        if self.failureRate :
         
-        failureTime = self.next_time()
+            t = time.clock()
+            
+            failureTime = self.next_time()
         
         while not self.terminate :
             
-            if time.clock() - t > failureTime :
+            if self.failureRate and not randomNode.inRecovery.isSet() and time.clock() - t > failureTime :
                 
                 randomNodeId = nodesIds[random.randint(0, len(self.nodes)-1)]
                 
-                self.nodes[randomNodeId].fail()
+                randomNode = self.nodes[randomNodeId]
+                
+                randomNode.fail()
                 
                 t = time.clock()
                 
-                failureTime = self.nextTime()
+                failureTime = self.next_time()
                 
             time.sleep(.2)
         
@@ -176,14 +188,15 @@ class Network():
         This function returns a float.
     
         """
-        print('Stoping network ...')
+        print('Stopping network ...')
         
         self.terminate = True
         
         for node in self.nodes.values() :
             
             node.terminate.set()
+        return CountComplx.countMsg, CountComplx.countAskP
         
-        print('network stoped successfully')
+        print('network stopped successfully')
             
             
