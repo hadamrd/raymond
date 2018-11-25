@@ -378,7 +378,6 @@ class Node(threading.Thread):
         print('node ', self.id, ' left recovery mode -->>')
         
                         
-                        
     def assign_privilege(self): 
         """    
         Extended description of function.
@@ -435,9 +434,7 @@ class Node(threading.Thread):
                 elif not self.inRecovery.isSet() :
                 
                     self.send_message(MsgType.ASSIGN, self.holderId)
-
-
-
+                    
 
     def send_message(self, msgType, dest, msgBody = ''):
         """       
