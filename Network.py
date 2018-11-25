@@ -2,8 +2,9 @@
 """
 Created on Fri Nov 23 20:15:11 2018
 
-@author : amine BENABDALLAH
 @author  : khalid MAJDOUB
+@author : amine BENABDALLAH
+
 """
 
 from Node import Node
