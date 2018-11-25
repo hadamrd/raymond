@@ -3,7 +3,7 @@
 Created on Fri Nov 23 20:15:11 2018
 
 @author : amine BENABDALLAH
-@autor  : khalid MAJDOUB
+@author  : khalid MAJDOUB
 """
 
 from collections import deque
