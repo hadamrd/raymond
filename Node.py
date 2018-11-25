@@ -13,7 +13,8 @@ import time
 import random
 import math
 import traceback
-
+from CountComplx import CountComplx
+    
 class MsgType:
     """    
     This class gathers the constants that'll represent the message type.
@@ -79,7 +80,7 @@ class Node(threading.Thread):
     Attributes
     ----------
     askingPrivRate : float
-        The number of times per second the node will ask for priviledge (.2 per default)
+        The number of times per second the node will ask for privilege (.2 per default)
        
     id : int
         The node id
@@ -134,13 +135,13 @@ class Node(threading.Thread):
         A methdod to consume received messages from rabbitMQ channel
        
     nextTime()
-        Time to wait before asking for priviledge next time
+        Time to wait before asking for privilege next time
        
     callback()
         This methode is called when a message is received
        
     assign_privilege()
-        This function assign the priviledge to the node or forward assign msg
+        This function assign the privilege to the node or forward assign msg
        
     recover()
         Recovers the node attributes to the state before failure
@@ -217,7 +218,7 @@ class Node(threading.Thread):
         Extended description of function.
         
         This function samples from an exponential distribution 
-        to simulate next time node will ask for priviledge.
+        to simulate next time node will ask for privilege.
         
         Parameters
         ----------
@@ -242,12 +243,12 @@ class Node(threading.Thread):
         
         There is 4 types of messages exchanged in the network :
         
-        Request message : is sent by the node to its holder to ask for priviledge, then the message is
-        propagated throughout the tree until it reaches the priviledged node.
+        Request message : is sent by the node to its holder to ask for privilege, then the message is
+        propagated throughout the tree until it reaches the privileged node.
         
         Format : 'R' | '*' | node id  
         
-        Assign message : is forwarded from the priviledged node to the one asked for priviledge. During 
+        Assign message : is forwarded from the privileged node to the one asked for privilege. During 
         that process the structure of the tree is reversed.
         
         Format :  'A' | '*' | node id
@@ -378,11 +379,12 @@ class Node(threading.Thread):
         print('node ', self.id, ' left recovery mode -->>')
         
                         
+                        
     def assign_privilege(self): 
         """    
         Extended description of function.
         
-        This function either assignes the priviledge to the node 
+        This function either assignes the privilege to the node 
         in the case it is the root of the tree, or forwards an ASSIGN
         type message to the first one to enter the request queue of 
         the node.
@@ -403,7 +405,7 @@ class Node(threading.Thread):
             
             if self.holderId == self.id and not self.using and self.requestQ :
                 
-                print( self.id, " is assigning priviledge" )
+                print( self.id, " is assigning privilege" )
                 
                 self.holderId = self.requestQ.popleft()
         
@@ -417,11 +419,11 @@ class Node(threading.Thread):
                     
                     Ressource.acquire() #hold ressource
                     
-                    time.sleep(3) #consume ressource                
+                    time.sleep(1.5) #consume ressource                
                     
                     Ressource.release() #release ressource
                     
-                    print (str(self.id) + " left the critical setion  -->>")
+                    print (str(self.id) + " left the critical section  -->>")
                     
                     self.using = False
                     
@@ -434,9 +436,12 @@ class Node(threading.Thread):
                 elif not self.inRecovery.isSet() :
                 
                     self.send_message(MsgType.ASSIGN, self.holderId)
-                    
+
+
+
 
     def send_message(self, msgType, dest, msgBody = ''):
+        
         """       
         Extended description of function.
         
@@ -462,7 +467,9 @@ class Node(threading.Thread):
         
         This function returns no value.
         
-        """        
+        """ 
+        CountComplx.countMsg+=1
+
         self.channel.basic_publish(exchange='', 
         routing_key='channel' + str(dest), 
         body = msgType +'*'+ str(self.id) + '*' + msgBody)
@@ -520,7 +527,7 @@ class Node(threading.Thread):
         
         Extended description of function.
         
-        This function is called by the node either to ask for the priviledge, or to forward
+        This function is called by the node either to ask for the privilege, or to forward
         the request to the rest of the tree.
         
         Request message format :   'R' | '*' | node id  
@@ -551,7 +558,7 @@ class Node(threading.Thread):
         Extended description of function.
         
         This function simulate the behaviour of the node in the network. After waiting a certain
-        time sampled from an exponential distribution, the node asks for priviledge. Then waits to 
+        time sampled from an exponential distribution, the node asks for privilege. Then waits to 
         be served before asking again.
         
         Parameters
@@ -580,21 +587,23 @@ class Node(threading.Thread):
             
             while not self.terminate.isSet() :
                 
-                if self.id not in self.requestQ and not self.inRecovery.isSet():
-                    
+                if self.askingPrivRate > 0:
+                
                     time.sleep(self.next_time())
                     
-                    print(str(self.id) + " is asking for privilege")
+                    if self.id not in self.requestQ and not self.inRecovery.isSet():
+                        
+                        print(str(self.id) + " is asking for privilege")
+                        
+                        CountComplx.countAskP+=1
+                        
+                        self.requestQ.append(self.id)
+                        
+                        self.assign_privilege()
+                        
+                        self.make_request() 
                     
-                    self.requestQ.append(self.id)
-                    
-                    self.assign_privilege()
-                    
-                    self.make_request() 
-                    
-                else :
-                    
-                    time.sleep(.2)
+                time.sleep(.2)
         
             self.connection.close()
                     
