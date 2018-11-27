@@ -63,7 +63,8 @@ class Ressource():
             Ressource.acquired = True
             
         else :
-            
+            #To make sure the simulation is conform to the algorithm and mutual exclusion is never 
+            #violated. We raise an exception if ever 2 nodes at same time entered critical section.
             raise Exception('Ressource already acquired!') 
             
     @staticmethod
@@ -86,42 +87,43 @@ class Node(threading.Thread):
         The node id
        
     neighborsId : list
-        A list that contains the neighbors ids of a node
+        A list that contains the neighbors ids of the node
        
     inRecovery : threading.Event
-        Threading signal that indicates if the node is in recovery state
+        A threading signal that indicates if the node is in recovery state or not
        
     neighborHolderId : dict
-        The id of the  neighbors holders nodes
+        The ids of the holders of the node neighbors stored in a dictionary
        
     inNeighborReqQ : dict
         Booleans that holds the information about the node being in the requestQ of 
-        its neighbors
+        its neighbors or not
        
     recievedFrom : dict
-        A boolean by neighbor set to true when an advise message is received 
-        from that neighbor
+        A boolean by neighbor set to True when an advise message is received 
+        from that neighbor to know when all advise messages are received
        
     neighborAsked : dict
-        Stores the asked attribute of neighbors received in advise messages
+        Stores the asked attribute of neighbors 
        
     holderId : int
         The id of the node holder
     
     using : bool
-        A boolean that indicates if the node is in the critical section
+        A boolean that indicates if the node is in the critical section or not 
     
     asked : bool
-        A boolean that indicates if the node has asked
+        A boolean set to True if the node has asked the privilege or forwarded a request message
     
     teminate : threading.Event
         Threading signal that indicate if node should continue to work
     
     canWork : threading.RLock
-        Reantrant lock to synchronise the main Thread and the listner
+        Reantrant lock to synchronise the main Thread and the listner. To make sure the listner and the main Thread
+        dont execute assign and request actions in the same time.
         
     requestQ : deque
-        A queue object to store the ids of request senders
+        A queue object to store the ids of requests senders
         
     connection : pika.BlockingConnection
         RabbitMQ blocking connection
@@ -132,16 +134,16 @@ class Node(threading.Thread):
     Methods
     -------
     listen()
-        A methdod to consume received messages from rabbitMQ channel
+        A methdod to consume received messages from the rabbitMQ channel of the node
        
     nextTime()
         Time to wait before asking for privilege next time
        
     callback()
-        This methode is called when a message is received
+        This methode is called whenever a message is received
        
     assign_privilege()
-        This function assign the privilege to the node or forward assign msg
+        This function assignes the privilege to the node if it is the root or forwards and assign msg
        
     recover()
         Recovers the node attributes to the state before failure
@@ -150,10 +152,10 @@ class Node(threading.Thread):
         This function sends a Message to a node
     
     make_request()
-        This function sends a Message of type Request to the holder
+        This function sends a Message of type Request to the holder if the right conditions are met
         
     fail()
-        This function simulate node failure
+        This function simulates node failure, it resets the node attributes, and set his inRecovery signal
     
     run()
         This methode simulate the behaviour of the node in the network.
@@ -238,8 +240,7 @@ class Node(threading.Thread):
         Extended description of function.
         
         This function is called whenever the node receives a message.
-        The message is decomposed and traitements are done 
-        depending on its type.
+        The message is decomposed and traitements are done depending on its type.
         
         There is 4 types of messages exchanged in the network :
         
@@ -248,14 +249,14 @@ class Node(threading.Thread):
         
         Format : 'R' | '*' | node id  
         
-        Assign message : is forwarded from the privileged node to the one asked for privilege. During 
+        Assign message : is forwarded from the privileged node to the one who asked for the privilege. During 
         that process the structure of the tree is reversed.
         
         Format :  'A' | '*' | node id
         
         Restart message: is sent by the node to its neighbors in the recovery phase, 
-        asking them to send back, those informations will be usded by the node
-        to reconstruct its state before faillure.
+        asking them to send back informations about their state, those informations will be used by the node
+        to reconstruct its state before failure.
         
         Format : 'S' | '*' | node id 
             
@@ -285,18 +286,21 @@ class Node(threading.Thread):
             
             print(self.id, 'received request from', senderId)
             
+            #if a request message is received add the send in requestQ
             self.requestQ.append(senderId)
             
         elif msgType == MsgType.ASSIGN :
             
             print(self.id, 'received assign from', senderId)
             
+            #if an assign message is received set the holder to self
             self.holderId = self.id
             
         elif msgType == MsgType.RESTART :
             
             print(self.id, 'received restart from', senderId)
             
+            #if node received a restart message from its neighbor, it reponds with an advise message
             msg = str(self.holderId)+','+str(senderId in self.requestQ)+','+str(self.asked)
             
             self.send_message(MsgType.ADVISE, senderId, msg)
@@ -313,19 +317,26 @@ class Node(threading.Thread):
             
             senderAsked = ( senderAsked == 'True')
             
+            #memorise if node is in its neighbor requestQ
             self.inNeighborReqQ[senderId] = inSenderReqQ
             
+            #memorise the holder of the neighbor
             self.neighborHolderId[senderId] = senderHolderId
             
+            #mark the neighbor to remember that it received an advise from it
             self.recievedFrom[senderId] = True
             
+            #memorise the variable asked of the neighbor
             self.neighborAsked[senderId] = senderAsked
             
             if all( value for value in self.recievedFrom.values() ) :
                 
+                #if advise messages are collected from all neighbors, start recovering attributes
                 self.recover()
                 
         if not self.inRecovery.isSet() :
+            
+            #if the node is not in recovery mode execute the following actions
             
             self.assign_privilege()
             
@@ -349,6 +360,7 @@ class Node(threading.Thread):
         This function returns no value.
         
         """ 
+        #here we determin the variable asked and holder id according to the algorithm
         
         if all(id == self.id for id in self.neighborHolderId.values()) :
             
@@ -367,7 +379,8 @@ class Node(threading.Thread):
                     self.asked = self.inNeighborReqQ[idN]
                     
                     break
-        
+                    
+        #here we determin the requestQ of the node according to the algorithm
         for nId in self.neighborsId :
             
             if self.neighborHolderId[nId] == self.id and self.neighborAsked[nId] :
@@ -384,10 +397,8 @@ class Node(threading.Thread):
         """    
         Extended description of function.
         
-        This function either assignes the privilege to the node 
-        in the case it is the root of the tree, or forwards an ASSIGN
-        type message to the first one to enter the request queue of 
-        the node.
+        This function either assignes the privilege to the node, in the case it is the root of the tree, or forwards an ASSIGN
+        type message to the first node to enter the request queue of the node.
         
         Assigne priveledge message format :  'A' | '*' | id of node 
             
@@ -401,6 +412,8 @@ class Node(threading.Thread):
         This function returns no value.
     
         """
+        
+        #hold the RLock to block listner from executing assign at same time
         with self.canWork :
             
             if self.holderId == self.id and not self.using and self.requestQ :
@@ -412,7 +425,8 @@ class Node(threading.Thread):
                 self.asked = False 
         
                 if self.holderId == self.id : 
-        
+                
+                    #if the node is the root of the tree
                     self.using = True 
                     
                     print (str(self.id) + " enter the critical section <<--")
@@ -588,11 +602,13 @@ class Node(threading.Thread):
             while not self.terminate.isSet() :
                 
                 if self.askingPrivRate > 0:
-                
+                    #if node has a non zero asking for privilege rate, it waits a time according
+                    #to the distribution Exp(askingPrivRate)
                     time.sleep(self.next_time())
                     
                     if self.id not in self.requestQ and not self.inRecovery.isSet():
-                        
+                        #if node is not already waiting for an asking privilege to be satisfied,
+                        #and it is not in recovery mode, asks for privilege
                         print(str(self.id) + " is asking for privilege")
                         
                         CountComplx.countAskP+=1
@@ -604,7 +620,7 @@ class Node(threading.Thread):
                         self.make_request() 
                     
                 time.sleep(.2)
-        
+            #close the channel to stop the listening thread after terminating
             self.connection.close()
                     
         except Exception :
