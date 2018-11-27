@@ -22,7 +22,7 @@ class Network():
     Attributes
     ----------
     nodes : dict
-        List of nodes.
+        Python dicionary containing the list of nodes.
         
     failureRate : float
         Failure rate in the network, number of failures per second.
@@ -32,19 +32,20 @@ class Network():
         asks for priviledge.
         
     terminate : bool
-        Flag than indicates the state of the network, set to false to
+        A flag that indicates the state of the network, it is set to false to
         stop the network.
     
     Methods
     -------
     addNode() :
-        Add node to the network.
+        Add a node to the network.
         
     start():
-        Start the network.
+        Starts the network. And randomly make a node fail according to exponential 
+        distribution.
         
     stop():
-        Stops the network.
+        Stops the network. And collects complexity data.
     """
     def __init__(self, failureRate = 1e-4, activityRate = .05): 
     
@@ -80,6 +81,7 @@ class Network():
         """        
         if nodeId in [nid for nid in self.nodes] :
             
+            #if the id given already exists raise error 
             raise NameError('node id must be unique !')
             
             sys.exit(0)
@@ -88,12 +90,16 @@ class Network():
             
             if askingPrivRate is None :
                 
+                #if no askinPrivRate is specified for the node, initialise it with the activityRate of network
                 askingPrivRate = self.activityRate
-                
+            
+            #instantiate the node and add it to the dicionary under the key = nodeId
             self.nodes[nodeId] = Node(nodeId, holderId, askingPrivRate)
             
             if holderId :
                 
+                #if holder id of the node is specified add it to the node neighbors and
+                #add the node to the holder neighbors
                 self.nodes[nodeId].neighborsId.append(holderId)    
                 
                 self.nodes[holderId].neighborsId.append(nodeId)
@@ -142,6 +148,7 @@ class Network():
         
         randomNode = self.nodes[nodesIds[0]]
         
+        #start the nodes as deamon threads
         for node in self.nodes.values() :
             
             node.daemon = True
@@ -158,6 +165,8 @@ class Network():
             
             if self.failureRate and not randomNode.inRecovery.isSet() and time.clock() - t > failureTime :
                 
+                #if the last failed node is out of recovery mode and next time of failure
+                #is surpassed, pick up a randome node from the dictionary and make it fail
                 randomNodeId = nodesIds[random.randint(0, len(self.nodes)-1)]
                 
                 randomNode = self.nodes[randomNodeId]
@@ -193,11 +202,15 @@ class Network():
         
         self.terminate = True
         
+        #Before stopping the network set terminate signal of the nodes and return the complexity 
         for node in self.nodes.values() :
             
             node.terminate.set()
+            
+            print('network stopped successfully')
+            
         return CountComplx.countMsg, CountComplx.countAskP
         
-        print('network stopped successfully')
+        
             
             
