@@ -5,7 +5,7 @@ import sys
 #
 #activityRate = float(input('enter activity rate : '))
 
-network = Network(failureRate = 0.0 , activityRate = .05)
+network = Network(failureRate = 0.3 , activityRate = 1.5)
 
 network.addNode(5)
 
